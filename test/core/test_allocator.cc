@@ -1,38 +1,43 @@
+#include "core/allocator.h"
+#include <iostream>
+
+Allocator::Allocator() : ptr(nullptr), currentOffset(0), totalSize(0) {}
+
+Allocator::~Allocator() {
+    // 清理资源
+}
+
+size_t Allocator::getAlignedSize(size_t size) {
+    const size_t alignment = 64;  // 64字节对齐
+    return (size + alignment - 1) & ~(alignment - 1);
+}
+
 size_t Allocator::alloc(size_t size) {
     IT_ASSERT(this->ptr == nullptr);
-    // pad the size to the multiple of alignment
     size = this->getAlignedSize(size);
 
-    // ============== 作业 ========================
-    // TODO: 设计一个算法来分配内存，返回起始地址偏移量
-    
     // 首先尝试在空闲块中查找合适大小的块
-    // 使用最佳适配算法：找到大于等于所需大小的最小块
     auto it = freeBlocksBySize.lower_bound(size);
     
     if (it != freeBlocksBySize.end()) {
-        // 找到合适的空闲块
         size_t blockSize = it->first;
         auto& addrSet = it->second;
         
-        // 获取第一个可用的起始地址
         size_t startAddr = *addrSet.begin();
         
-        // 从空闲块集合中移除这个块
+        // 从空闲块集合中移除
         addrSet.erase(startAddr);
         if (addrSet.empty()) {
             freeBlocksBySize.erase(it);
         }
         
-        // 从起始地址映射中移除
         freeBlocksByStart.erase(startAddr);
         
-        // 如果块大小大于所需大小，将剩余部分作为新的空闲块
+        // 如果块大小大于所需大小，分割块
         if (blockSize > size) {
             size_t remainingSize = blockSize - size;
             size_t remainingAddr = startAddr + size;
             
-            // 添加剩余部分到空闲块集合
             freeBlocksByStart[remainingAddr] = remainingSize;
             freeBlocksBySize[remainingSize].insert(remainingAddr);
         }
@@ -40,52 +45,47 @@ size_t Allocator::alloc(size_t size) {
         return startAddr;
     }
     
-    // 如果没有合适的空闲块，从当前偏移量分配
+    // 从当前偏移量分配
     size_t startAddr = currentOffset;
     currentOffset += size;
+    totalSize = std::max(totalSize, currentOffset);
     
     return startAddr;
-    
-    // ============== 作业 ========================
 }
 
 void Allocator::free(size_t addr, size_t size) {
     IT_ASSERT(this->ptr == nullptr);
     size = getAlignedSize(size);
-
-    // ============== 作业 ========================
-    // TODO: 设计一个算法来回收内存
     
-    // 将释放的块添加到空闲块集合
+    // 添加释放的块到空闲块集合
     freeBlocksByStart[addr] = size;
     freeBlocksBySize[size].insert(addr);
     
     // 合并相邻的空闲块
     mergeFreeBlocks();
-    
-    // ============== 作业 ========================
 }
 
 void Allocator::mergeFreeBlocks() {
     if (freeBlocksByStart.empty()) return;
     
-    // 按起始地址排序后，合并相邻的空闲块
+    // 按起始地址排序，合并相邻块
     auto it = freeBlocksByStart.begin();
-    auto nextIt = std::next(it);
     
-    while (nextIt != freeBlocksByStart.end()) {
+    while (it != freeBlocksByStart.end()) {
+        auto nextIt = std::next(it);
+        if (nextIt == freeBlocksByStart.end()) break;
+        
         size_t currentAddr = it->first;
         size_t currentSize = it->second;
         size_t nextAddr = nextIt->first;
         size_t nextSize = nextIt->second;
         
-        // 检查当前块和下一个块是否相邻
+        // 检查是否相邻
         if (currentAddr + currentSize == nextAddr) {
             // 合并两个块
             size_t mergedSize = currentSize + nextSize;
             
-            // 从空闲块集合中移除原来的两个块
-            // 从大小映射中移除
+            // 从空闲块集合中移除
             freeBlocksBySize[currentSize].erase(currentAddr);
             if (freeBlocksBySize[currentSize].empty()) {
                 freeBlocksBySize.erase(currentSize);
@@ -96,21 +96,31 @@ void Allocator::mergeFreeBlocks() {
                 freeBlocksBySize.erase(nextSize);
             }
             
-            // 从起始地址映射中移除
-            freeBlocksByStart.erase(nextAddr);
+            freeBlocksByStart.erase(nextIt);
             
-            // 更新当前块的大小
+            // 更新当前块
             it->second = mergedSize;
-            
-            // 添加到大小映射
             freeBlocksBySize[mergedSize].insert(currentAddr);
             
-            // 重新开始合并，因为合并后可能还能和下一个块合并
-            nextIt = std::next(it);
-        } else {
-            // 不合并，继续检查下一对
-            ++it;
-            ++nextIt;
+            // 继续检查合并后的块是否能和下一个块合并
+            continue;
         }
+        
+        ++it;
+    }
+}
+
+void* Allocator::getPtr() {
+    return ptr;
+}
+
+void Allocator::info() {
+    std::cout << "Allocator Info:" << std::endl;
+    std::cout << "  Total allocated size: " << totalSize << std::endl;
+    std::cout << "  Current offset: " << currentOffset << std::endl;
+    std::cout << "  Free blocks count: " << freeBlocksByStart.size() << std::endl;
+    
+    for (const auto& [addr, size] : freeBlocksByStart) {
+        std::cout << "    Free block: addr=" << addr << ", size=" << size << std::endl;
     }
 }
