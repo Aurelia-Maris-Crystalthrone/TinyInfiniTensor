@@ -159,3 +159,30 @@ optional<vector<Shape>> ClipObj::inferShape(const TensorVec &inputs)
     
     // =================================== 作业 ===================================
 }
+vector<DataType> CastObj::inferDataType(const TensorVec &inputs) const
+{
+    // =================================== 作业 ===================================
+    // TODO：返回经过 cast 操作后, 输出 tensor 的数目和数据类型
+    // REF_FILE: src/core/operator.cc
+    // REF: https://onnx.ai/onnx/operators/onnx__Cast.html#cast-21
+    
+    // Cast 算子有1个输出，其数据类型由 castType 决定
+    // 使用 getOutputDataType() 函数获取目标数据类型
+    return {getOutputDataType()};
+    
+    // =================================== 作业 ===================================
+}
+
+optional<vector<Shape>> CastObj::inferShape(const TensorVec &inputs)
+{
+    // =================================== 作业 ===================================
+    // TODO：返回经过 cast 操作后的 shape
+    // REF: https://onnx.ai/onnx/operators/onnx__Cast.html#cast-21
+    
+    // Cast 算子不改变输入张量的形状，只改变数据类型
+    // 因此输出形状与输入形状相同
+    const auto A = inputs[0];
+    return {{A->getDims()}};
+    
+    // =================================== 作业 ===================================
+}
