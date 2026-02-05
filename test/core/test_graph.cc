@@ -37,4 +37,56 @@ namespace infini
         EXPECT_EQ(op->getTransA(), false);
         EXPECT_EQ(op->getTransB(), true);
     }
+void GraphObj::dataMalloc()
+{
+    // topological sorting first
+    IT_ASSERT(topo_sort() == true);
+
+    // ====================== 作业 ============================
+    // TODO: 利用 allocator 给计算图分配内存
+    // HINT: 获取分配的内存指针后，可以调用 tensor 的 setDataBlob 函数给 tensor 绑定内存
+    
+    // 获取图中的所有张量
+    auto allTensors = getTensors();
+    
+    // 遍历拓扑排序后的算子
+    for (auto& op : this->ops) {
+        // 为算子的输出张量分配内存
+        for (auto& output : op->getOutputs()) {
+            // 如果张量还没有分配内存
+            if (!output->hasData()) {
+                // 计算张量所需的内存大小
+                size_t tensorSize = output->getBytes();
+                
+                // 使用分配器分配内存
+                size_t offset = allocator.alloc(tensorSize);
+                
+                // 获取分配的内存基地址
+                void* basePtr = allocator.getPtr();
+                
+                // 计算张量的实际内存地址
+                void* tensorPtr = static_cast<char*>(basePtr) + offset;
+                
+                // 为张量设置数据指针
+                output->setDataBlob(make_ref<Blob>(tensorPtr, tensorSize));
+            }
+        }
+        
+        // 注意：输入张量通常在前驱算子中已经分配了内存
+        // 但如果输入张量是图的输入（没有前驱算子），也需要分配内存
+        for (auto& input : op->getInputs()) {
+            if (!input->hasData()) {
+                size_t tensorSize = input->getBytes();
+                size_t offset = allocator.alloc(tensorSize);
+                void* basePtr = allocator.getPtr();
+                void* tensorPtr = static_cast<char*>(basePtr) + offset;
+                input->setDataBlob(make_ref<Blob>(tensorPtr, tensorSize));
+            }
+        }
+    }
+    
+    // ====================== 作业 ============================
+
+    allocator.info();
+}
 }
