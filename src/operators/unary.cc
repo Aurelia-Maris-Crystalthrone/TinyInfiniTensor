@@ -146,3 +146,16 @@ namespace infini
         }
     }
 }; // namespace infini
+optional<vector<Shape>> ClipObj::inferShape(const TensorVec &inputs)
+{
+    // =================================== 作业 ===================================
+    // TODO：返回经过 clip 操作后的 shape
+    // REF: https://onnx.ai/onnx/operators/onnx__Clip.html#clip-13
+    
+    // Clip 算子不改变输入张量的形状，只是对每个元素进行裁剪
+    // 因此输出形状与输入形状相同
+    const auto A = inputs[0];
+    return {{A->getDims()}};
+    
+    // =================================== 作业 ===================================
+}
