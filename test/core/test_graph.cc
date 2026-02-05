@@ -1,40 +1,55 @@
-#include "core/graph.h"
-#include "core/kernel.h"
-#include "core/runtime.h"
-#include "operators/matmul.h"
-#include "operators/transpose.h"
+void GraphObj::dataMalloc() {
+    // topological sorting first
+    IT_ASSERT(topo_sort() == true);
 
-#include "test.h"
-
-namespace infini
-{
-    TEST(Graph, Optimize)
-    {
-        Runtime runtime = NativeCpuRuntimeObj::getInstance();
-        Graph g = make_ref<GraphObj>(runtime);
-        Tensor i1 = g->addTensor({2, 3, 4, 5}, DataType::UInt32);
-        Tensor i2 = g->addTensor({2, 3, 4, 5}, DataType::UInt32);
-        Tensor t1 = g->addTensor({2, 3, 5, 4}, DataType::UInt32);
-        Tensor t2 = g->addTensor({2, 3, 4, 5}, DataType::UInt32);
-        Tensor t3 = g->addTensor({2, 3, 5, 4}, DataType::UInt32);
-        Tensor o = g->addTensor({2, 3, 4, 4}, DataType::UInt32);
-        g->addOpWithOutputs<TransposeObj>(i1, t1, Shape{0, 1, 3, 2});
-        g->addOpWithOutputs<TransposeObj>(t1, t2, Shape{0, 1, 3, 2});
-        g->addOpWithOutputs<TransposeObj>(i2, t3, Shape{0, 1, 3, 2});
-        g->addOpWithOutputs<MatmulObj>(t2, t3, o);
-        // 优化前
-        g->print();
-        g->optimize();
-        // 优化后
-        g->print();
-        EXPECT_EQ(g->getOperators().size(), 1);
-        EXPECT_EQ(g->getTensors().size(), 3);
-        EXPECT_EQ(g->getOperators()[0]->getOpType().underlying(), 7);
-        auto op = as<MatmulObj>(g->getOperators()[0]);
-        EXPECT_EQ(op->getInputs(0)->getGuid(), 2);
-        EXPECT_EQ(op->getInputs(1)->getGuid(), 3);
-        EXPECT_EQ(op->getOutputs()[0], o);
-        EXPECT_EQ(op->getTransA(), false);
-        EXPECT_EQ(op->getTransB(), true);
+    // ============== 作业 ========================
+    // TODO: 利用 allocator 给计算图分配内存
+    // HINT: 获取分配好的内存指针后，可以调用 tensor 的 setDataBlob 函数给 tensor 绑定内存
+    
+    // 首先计算所有张量的总大小
+    size_t totalSize = 0;
+    std::vector<Tensor> allTensors;
+    
+    // 收集所有张量
+    for (const auto& op : operators) {
+        for (const auto& input : op->getInputs()) {
+            allTensors.push_back(input);
+        }
+        for (const auto& output : op->getOutputs()) {
+            allTensors.push_back(output);
+        }
     }
+    
+    // 移除重复的张量
+    std::sort(allTensors.begin(), allTensors.end());
+    allTensors.erase(std::unique(allTensors.begin(), allTensors.end()), allTensors.end());
+    
+    // 计算总大小
+    for (const auto& tensor : allTensors) {
+        totalSize += tensor->getBytes();
+    }
+    
+    // 使用运行时分配内存
+    void* blob = runtime->alloc(totalSize);
+    
+    // 使用allocator管理内存分配
+    Allocator allocator(runtime);
+    
+    // 为每个张量分配内存偏移量
+    std::map<Tensor, size_t> tensorOffsets;
+    for (const auto& tensor : allTensors) {
+        size_t offset = allocator.alloc(tensor->getBytes());
+        tensorOffsets[tensor] = offset;
+    }
+    
+    // 获取分配的内存指针并绑定到张量
+    void* basePtr = allocator.getPtr();
+    for (const auto& [tensor, offset] : tensorOffsets) {
+        void* tensorPtr = static_cast<char*>(basePtr) + offset;
+        tensor->setDataBlob(tensorPtr);
+    }
+    
+    // ============== 作业 ========================
+
+    allocator.info();
 }
