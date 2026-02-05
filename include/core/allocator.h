@@ -1,59 +1,39 @@
 #pragma once
-#include "core/runtime.h"
-#include "core/tensor.h"
-#ifdef BUILD_TEST
-#include "gtest/gtest.h"
-#endif
-#include <cstddef>
+
 #include <map>
-#include <unordered_set>
+#include <set>
+#include <cstddef>
 
-namespace infini {
-  class Allocator
-  {
-  private:
-    Runtime runtime;
-
-    size_t used;
-
-    size_t peak;
-
-    size_t alignment;
-
-    // pointer to the memory actually allocated
-    void *ptr;
-
-    // =================================== 作业 ===================================
-    // TODO：可能需要设计一个数据结构来存储free block，以便于管理和合并
-    // HINT: 可以使用一个 map 来存储 free block，key 为 block 的起始/结尾地址，value 为 block 的大小
-    // =================================== 作业 ===================================
-
-  public:
-    Allocator(Runtime runtime);
-
-    virtual ~Allocator();
-
-    // function: simulate memory allocation
-    // arguments：
-    //     size: size of memory block to be allocated
-    // return: head address offset of the allocated memory block
+class Allocator {
+private:
+    void* ptr;  // 实际分配的内存指针
+    size_t currentOffset;  // 当前分配偏移量
+    size_t totalSize;  // 总分配大小
+    
+    // 空闲块管理
+    std::map<size_t, size_t> freeBlocksByStart;  // key: 起始地址, value: 块大小
+    std::map<size_t, std::set<size_t>> freeBlocksBySize;  // key: 块大小, value: 起始地址集合
+    
+public:
+    Allocator();
+    ~Allocator();
+    
+    // 分配内存，返回起始地址偏移量
     size_t alloc(size_t size);
-
-    // function: simulate memory free
-    // arguments:
-    //     addr: head address offset of memory block to be free
-    //     size: size of memory block to be freed
+    
+    // 释放内存
     void free(size_t addr, size_t size);
-
-    // function: perform actual memory allocation
-    // return: pointer to the head address of the allocated memory
-    void *getPtr();
-
-    void info();
-
-  private:
-    // function: memory alignment, rouned up
-    // return: size of the aligned memory block
+    
+    // 获取对齐后的尺寸
     size_t getAlignedSize(size_t size);
-  };
-}
+    
+    // 获取内存指针
+    void* getPtr();
+    
+    // 打印分配信息
+    void info();
+    
+private:
+    // 合并相邻的空闲块
+    void mergeFreeBlocks();
+};
